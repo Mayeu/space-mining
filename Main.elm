@@ -241,9 +241,10 @@ view model =
             model.mdl
             [ Button.raised
             , if model.nanite.autoreplication then
-                Options.nop
-              else
+                -- Autoreplication is on, you don't need to buy anything
                 Button.disabled
+              else
+                Options.nop
             , Options.onClick ConvertNanite
             ]
             [ text ("Convert nanite (100 raw materials)") ]
