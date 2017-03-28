@@ -11,24 +11,24 @@ import Time exposing (Time, second)
 
 
 type alias Model =
-    { nanomachineQuantity : Int
+    { naniteQuantity : Int
     , lastUpdate : Time
-    , factory : NanomachineFactory
+    , factory : NaniteFactory
     , rawMaterials : Int
-    , nanomachineCost : Int
+    , naniteCost : Int
     , storageLevel : Int
     , expandStorageCost : Int
     , localResource : Integer
     }
 
 
-type alias NanomachineFactory =
+type alias NaniteFactory =
     { buildTime : Int }
 
 
 initialModel : Model
 initialModel =
-    Model 1 0 initialNanomachineFactory initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model 1 0 initialNaniteFactory initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
 
 
 initialBuildTime =
@@ -61,9 +61,9 @@ initialLocalResource =
             Integer.zero
 
 
-initialNanomachineFactory : NanomachineFactory
-initialNanomachineFactory =
-    NanomachineFactory initialBuildTime
+initialNaniteFactory : NaniteFactory
+initialNaniteFactory =
+    NaniteFactory initialBuildTime
 
 
 
@@ -72,7 +72,7 @@ initialNanomachineFactory =
 
 type Msg
     = Tick Time
-    | ConvertNanomachine
+    | ConvertNanite
     | ExpandStorage
 
 
@@ -82,11 +82,11 @@ update msg model =
         Tick _ ->
             ( updateOnTick model, Cmd.none )
 
-        ConvertNanomachine ->
-            if model.rawMaterials >= model.nanomachineCost then
+        ConvertNanite ->
+            if model.rawMaterials >= model.naniteCost then
                 ( { model
-                    | nanomachineQuantity = model.nanomachineQuantity + 1
-                    , rawMaterials = model.rawMaterials - model.nanomachineCost
+                    | naniteQuantity = model.naniteQuantity + 1
+                    , rawMaterials = model.rawMaterials - model.naniteCost
                   }
                 , Cmd.none
                 )
@@ -109,7 +109,7 @@ updateOnTick : Model -> Model
 updateOnTick model =
     let
         newRawMaterials =
-            model.rawMaterials + model.nanomachineQuantity
+            model.rawMaterials + model.naniteQuantity
 
         totalStorage =
             currentStorage model
@@ -122,7 +122,7 @@ updateOnTick model =
         else
             { model
                 | rawMaterials = newRawMaterials
-                , localResource = Integer.sub model.localResource (Integer.fromInt model.nanomachineQuantity)
+                , localResource = Integer.sub model.localResource (Integer.fromInt model.naniteQuantity)
             }
 
 
@@ -145,9 +145,9 @@ currentStorage model =
 -- VIEW
 
 
-nanomachineInfo : Int -> String
-nanomachineInfo quantity =
-    "Nanomachine: " ++ (toString quantity)
+naniteInfo : Int -> String
+naniteInfo quantity =
+    "Nanite: " ++ (toString quantity)
 
 
 materialInfo : Int -> String
@@ -165,9 +165,9 @@ resourceInfo quantity =
     "Local Resource: " ++ (Integer.toString quantity)
 
 
-viewNanomachine : Int -> Html Msg
-viewNanomachine quantity =
-    p [] [ text (nanomachineInfo quantity) ]
+viewNanite : Int -> Html Msg
+viewNanite quantity =
+    p [] [ text (naniteInfo quantity) ]
 
 
 viewMaterials : Int -> Html Msg
@@ -188,11 +188,11 @@ viewResource quantity =
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
-        [ viewNanomachine model.nanomachineQuantity
+        [ viewNanite model.naniteQuantity
         , viewMaterials model.rawMaterials
         , currentStorage model |> viewStorage
         , viewResource model.localResource
-        , div [] [ button [ onClick ConvertNanomachine ] [ text ("Convert nanomachine (100 raw materials)") ] ]
+        , div [] [ button [ onClick ConvertNanite ] [ text ("Convert nanite (100 raw materials)") ] ]
         , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
         ]
 
