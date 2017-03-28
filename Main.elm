@@ -1,5 +1,6 @@
 module GrayGoo exposing (..)
 
+import Data.Integer as Integer exposing (Integer)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -17,17 +18,17 @@ type alias Model =
     , nanomachineCost : Int
     , storageLevel : Int
     , expandStorageCost : Int
+    , localResource : Integer
     }
 
 
 type alias NanomachineFactory =
-    { buildTime : Int
-    }
+    { buildTime : Int }
 
 
 initialModel : Model
 initialModel =
-    Model 1 0 initialNanomachineFactory initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost
+    Model 1 0 initialNanomachineFactory initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
 
 
 initialBuildTime =
@@ -50,6 +51,16 @@ initialExpandStorageCost =
     500
 
 
+initialLocalResource =
+    -- Local resources, in nano grams
+    case Integer.fromString "32000000000000000000" of
+        Just localResource ->
+            localResource
+
+        Nothing ->
+            Integer.zero
+
+
 initialNanomachineFactory : NanomachineFactory
 initialNanomachineFactory =
     NanomachineFactory initialBuildTime
@@ -69,7 +80,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Tick _ ->
-            ( { model | rawMaterials = updateRawMaterials model }, Cmd.none )
+            ( updateOnTick model, Cmd.none )
 
         ConvertNanomachine ->
             if model.rawMaterials >= model.nanomachineCost then
@@ -94,8 +105,8 @@ update msg model =
                 ( model, Cmd.none )
 
 
-updateRawMaterials : Model -> Int
-updateRawMaterials model =
+updateOnTick : Model -> Model
+updateOnTick model =
     let
         newRawMaterials =
             model.rawMaterials + model.nanomachineQuantity
@@ -104,9 +115,15 @@ updateRawMaterials model =
             currentStorage model
     in
         if newRawMaterials > totalStorage then
-            totalStorage
+            { model
+                | rawMaterials = totalStorage
+                , localResource = Integer.sub model.localResource (Integer.fromInt (totalStorage - model.rawMaterials))
+            }
         else
-            newRawMaterials
+            { model
+                | rawMaterials = newRawMaterials
+                , localResource = Integer.sub model.localResource (Integer.fromInt model.nanomachineQuantity)
+            }
 
 
 subscriptions : Model -> Sub Msg
@@ -143,6 +160,11 @@ storageInfo quantity =
     "Total Storage: " ++ (toString quantity)
 
 
+resourceInfo : Integer -> String
+resourceInfo quantity =
+    "Local Resource: " ++ (Integer.toString quantity)
+
+
 viewNanomachine : Int -> Html Msg
 viewNanomachine quantity =
     p [] [ text (nanomachineInfo quantity) ]
@@ -158,12 +180,18 @@ viewStorage quantity =
     p [] [ text (storageInfo quantity) ]
 
 
+viewResource : Integer -> Html Msg
+viewResource quantity =
+    p [] [ text (resourceInfo quantity) ]
+
+
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
         [ viewNanomachine model.nanomachineQuantity
         , viewMaterials model.rawMaterials
         , currentStorage model |> viewStorage
+        , viewResource model.localResource
         , div [] [ button [ onClick ConvertNanomachine ] [ text ("Convert nanomachine (100 raw materials)") ] ]
         , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
         ]
