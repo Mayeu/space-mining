@@ -1,6 +1,6 @@
 module GrayGoo exposing (..)
 
-import Data.Integer as Integer exposing (Integer)
+import Data.Integer as I exposing (Integer)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -11,49 +11,55 @@ import Time exposing (Time, second)
 
 
 type alias Model =
-    { naniteQuantity : Int
+    { naniteQuantity : Integer
     , lastUpdate : Time
-    , rawMaterials : Int
-    , naniteCost : Int
-    , storageLevel : Int
-    , expandStorageCost : Int
+    , rawMaterials : Integer
+    , naniteCost : Integer
+    , storageLevel : Integer
+    , expandStorageCost : Integer
     , localResource : Integer
     }
 
 
 initialModel : Model
 initialModel =
-    Model 1 0 initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model I.one 0 initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
 
 
+initialBuildTime : Integer
 initialBuildTime =
-    5
+    I.fromInt 5
 
 
+initialRawMaterials : Integer
 initialRawMaterials =
-    0
+    I.zero
 
 
+initialNonaMachineCost : Integer
 initialNonaMachineCost =
-    100
+    I.fromInt 100
 
 
+initialStorageLevel : Integer
 initialStorageLevel =
-    0
+    I.zero
 
 
+initialExpandStorageCost : Integer
 initialExpandStorageCost =
-    500
+    I.fromInt 500
 
 
+initialLocalResource : Integer
 initialLocalResource =
     -- Local resources, in nano grams
-    case Integer.fromString "32000000000000000000" of
+    case I.fromString "32000000000000000000" of
         Just localResource ->
             localResource
 
         Nothing ->
-            Integer.zero
+            I.zero
 
 
 
@@ -74,10 +80,10 @@ update msg model =
             ( updateOnTick model, Cmd.none )
 
         ConvertNanite ->
-            if model.rawMaterials >= model.naniteCost then
+            if I.gte model.rawMaterials model.naniteCost then
                 ( { model
-                    | naniteQuantity = model.naniteQuantity + 1
-                    , rawMaterials = model.rawMaterials - model.naniteCost
+                    | naniteQuantity = I.add model.naniteQuantity I.one
+                    , rawMaterials = I.sub model.rawMaterials model.naniteCost
                   }
                 , Cmd.none
                 )
@@ -85,10 +91,10 @@ update msg model =
                 ( model, Cmd.none )
 
         ExpandStorage ->
-            if model.rawMaterials >= model.expandStorageCost then
+            if I.gte model.rawMaterials model.expandStorageCost then
                 ( { model
-                    | rawMaterials = model.rawMaterials - model.expandStorageCost
-                    , storageLevel = model.storageLevel + 1
+                    | rawMaterials = I.sub model.rawMaterials model.expandStorageCost
+                    , storageLevel = I.add model.storageLevel I.one
                   }
                 , Cmd.none
                 )
@@ -100,20 +106,22 @@ updateOnTick : Model -> Model
 updateOnTick model =
     let
         newRawMaterials =
-            model.rawMaterials + model.naniteQuantity
+            I.add model.rawMaterials model.naniteQuantity
 
         totalStorage =
             currentStorage model
     in
-        if newRawMaterials > totalStorage then
+        if I.gt newRawMaterials totalStorage then
             { model
                 | rawMaterials = totalStorage
-                , localResource = Integer.sub model.localResource (Integer.fromInt (totalStorage - model.rawMaterials))
+                , localResource =
+                  I.sub totalStorage model.rawMaterials
+                |> I.sub model.localResource
             }
         else
             { model
                 | rawMaterials = newRawMaterials
-                , localResource = Integer.sub model.localResource (Integer.fromInt model.naniteQuantity)
+                , localResource = I.sub model.localResource model.naniteQuantity
             }
 
 
@@ -127,46 +135,48 @@ subscriptions model =
 -- Helper function
 
 
-currentStorage : Model -> Int
+currentStorage : Model -> Integer
 currentStorage model =
-    1000 + model.storageLevel * 200
+    I.fromInt 200
+        |> I.mul model.storageLevel
+        |> I.add (I.fromInt 1000)
 
 
 
 -- VIEW
 
 
-naniteInfo : Int -> String
+naniteInfo : Integer -> String
 naniteInfo quantity =
-    "Nanite: " ++ (toString quantity)
+    "Nanite: " ++ (I.toString quantity)
 
 
-materialInfo : Int -> String
+materialInfo : Integer -> String
 materialInfo quantity =
-    "Raw Materials: " ++ (toString quantity)
+    "Raw Materials: " ++ (I.toString quantity)
 
 
-storageInfo : Int -> String
+storageInfo : Integer -> String
 storageInfo quantity =
-    "Total Storage: " ++ (toString quantity)
+    "Total Storage: " ++ (I.toString quantity)
 
 
 resourceInfo : Integer -> String
 resourceInfo quantity =
-    "Local Resource: " ++ (Integer.toString quantity)
+    "Local Resource: " ++ (I.toString quantity)
 
 
-viewNanite : Int -> Html Msg
+viewNanite : Integer -> Html Msg
 viewNanite quantity =
     p [] [ text (naniteInfo quantity) ]
 
 
-viewMaterials : Int -> Html Msg
+viewMaterials : Integer -> Html Msg
 viewMaterials quantity =
     p [] [ text (materialInfo quantity) ]
 
 
-viewStorage : Int -> Html Msg
+viewStorage : Integer -> Html Msg
 viewStorage quantity =
     p [] [ text (storageInfo quantity) ]
 
