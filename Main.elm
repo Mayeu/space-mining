@@ -9,12 +9,15 @@ import Time exposing (Time, second)
 
 -- MODEL
 
+type alias NaniteModel =
+    {quantity: Integer
+    , storage: Integer
+    , cost: Integer
+    }
 
 type alias Model =
-    { naniteQuantity : Integer
-    , lastUpdate : Time
+    { nanite : NaniteModel
     , rawMaterials : Integer
-    , naniteCost : Integer
     , storageLevel : Integer
     , expandStorageCost : Integer
     , localResource : Integer
@@ -23,8 +26,12 @@ type alias Model =
 
 initialModel : Model
 initialModel =
-    Model I.one 0 initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource
 
+
+initialNanite : NaniteModel
+initialNanite =
+    NaniteModel I.one (I.fromInt 100) initialNaniteCost
 
 initialBuildTime : Integer
 initialBuildTime =
@@ -36,8 +43,8 @@ initialRawMaterials =
     I.zero
 
 
-initialNonaMachineCost : Integer
-initialNonaMachineCost =
+initialNaniteCost : Integer
+initialNaniteCost =
     I.fromInt 100
 
 
@@ -80,10 +87,14 @@ update msg model =
             ( updateOnTick model, Cmd.none )
 
         ConvertNanite ->
-            if I.gte model.rawMaterials model.naniteCost then
+            if I.gte model.rawMaterials model.nanite.cost then
+                let
+                    nanite = model.nanite
+                    newNanite = { nanite | quantity= I.add nanite.quantity I.one}
+                                in
                 ( { model
-                    | naniteQuantity = I.add model.naniteQuantity I.one
-                    , rawMaterials = I.sub model.rawMaterials model.naniteCost
+                    | nanite = newNanite
+                    , rawMaterials = I.sub model.rawMaterials model.nanite.cost
                   }
                 , Cmd.none
                 )
@@ -106,7 +117,7 @@ updateOnTick : Model -> Model
 updateOnTick model =
     let
         newRawMaterials =
-            I.add model.rawMaterials model.naniteQuantity
+            I.add model.rawMaterials model.nanite.quantity
 
         totalStorage =
             currentStorage model
@@ -121,7 +132,7 @@ updateOnTick model =
         else
             { model
                 | rawMaterials = newRawMaterials
-                , localResource = I.sub model.localResource model.naniteQuantity
+                , localResource = I.sub model.localResource model.nanite.quantity
             }
 
 
@@ -151,9 +162,9 @@ naniteInfo quantity =
     "Nanite: " ++ (I.toString quantity)
 
 
-materialInfo : Integer -> String
-materialInfo quantity =
-    "Raw Materials: " ++ (I.toString quantity)
+materialInfo : Integer -> Integer -> String
+materialInfo quantity storage =
+    "Raw Materials: " ++ (I.toString quantity) ++ " / " ++ (I.toString storage)
 
 
 storageInfo : Integer -> String
@@ -171,14 +182,9 @@ viewNanite quantity =
     p [] [ text (naniteInfo quantity) ]
 
 
-viewMaterials : Integer -> Html Msg
-viewMaterials quantity =
-    p [] [ text (materialInfo quantity) ]
-
-
-viewStorage : Integer -> Html Msg
-viewStorage quantity =
-    p [] [ text (storageInfo quantity) ]
+viewMaterials : Integer -> Integer -> Html Msg
+viewMaterials quantity storage =
+    p [] [ text (materialInfo quantity storage) ]
 
 
 viewResource : Integer -> Html Msg
@@ -189,9 +195,8 @@ viewResource quantity =
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
-        [ viewNanite model.naniteQuantity
-        , viewMaterials model.rawMaterials
-        , currentStorage model |> viewStorage
+        [ viewNanite model.nanite.quantity
+        , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource model.localResource
         , div [] [ button [ onClick ConvertNanite ] [ text ("Convert nanite (100 raw materials)") ] ]
         , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
