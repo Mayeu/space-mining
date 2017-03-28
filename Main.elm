@@ -13,7 +13,6 @@ import Time exposing (Time, second)
 type alias Model =
     { naniteQuantity : Int
     , lastUpdate : Time
-    , factory : NaniteFactory
     , rawMaterials : Int
     , naniteCost : Int
     , storageLevel : Int
@@ -22,13 +21,9 @@ type alias Model =
     }
 
 
-type alias NaniteFactory =
-    { buildTime : Int }
-
-
 initialModel : Model
 initialModel =
-    Model 1 0 initialNaniteFactory initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model 1 0 initialRawMaterials initialNonaMachineCost initialStorageLevel initialExpandStorageCost initialLocalResource
 
 
 initialBuildTime =
@@ -60,10 +55,6 @@ initialLocalResource =
         Nothing ->
             Integer.zero
 
-
-initialNaniteFactory : NaniteFactory
-initialNaniteFactory =
-    NaniteFactory initialBuildTime
 
 
 
