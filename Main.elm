@@ -3,17 +3,25 @@ module GrayGoo exposing (..)
 import Data.Integer as I exposing (Integer)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Material
+import Material.Button as Button
+import Material.Color as Color
+import Material.Options as Options
+import Material.Scheme
+import Material.Toggles as Toggles
 import Time exposing (Time, second)
 
 
 -- MODEL
 
+
 type alias NaniteModel =
-    {quantity: Integer
-    , storage: Integer
-    , cost: Integer
+    { quantity : Integer
+    , storage : Integer
+    , cost : Integer
+    , autoreplication : Bool
     }
+
 
 type alias Model =
     { nanite : NaniteModel
@@ -21,17 +29,19 @@ type alias Model =
     , storageLevel : Integer
     , expandStorageCost : Integer
     , localResource : Integer
+    , mdl : Material.Model
     }
 
 
 initialModel : Model
 initialModel =
-    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource Material.model
 
 
 initialNanite : NaniteModel
 initialNanite =
-    NaniteModel I.one (I.fromInt 100) initialNaniteCost
+    NaniteModel I.one (I.fromInt 100) initialNaniteCost True
+
 
 initialBuildTime : Integer
 initialBuildTime =
@@ -70,7 +80,6 @@ initialLocalResource =
 
 
 
-
 -- UPDATE
 
 
@@ -78,6 +87,8 @@ type Msg
     = Tick Time
     | ConvertNanite
     | ExpandStorage
+    | ToggleAutoReplication
+    | Mdl (Material.Msg Msg)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -86,18 +97,31 @@ update msg model =
         Tick _ ->
             ( updateOnTick model, Cmd.none )
 
+        ToggleAutoReplication ->
+            let
+                nanite =
+                    model.nanite
+
+                newNanite =
+                    { nanite | autoreplication = not nanite.autoreplication }
+            in
+                ( { model | nanite = newNanite }, Cmd.none )
+
         ConvertNanite ->
             if I.gte model.rawMaterials model.nanite.cost then
                 let
-                    nanite = model.nanite
-                    newNanite = { nanite | quantity= I.add nanite.quantity I.one}
-                                in
-                ( { model
-                    | nanite = newNanite
-                    , rawMaterials = I.sub model.rawMaterials model.nanite.cost
-                  }
-                , Cmd.none
-                )
+                    nanite =
+                        model.nanite
+
+                    newNanite =
+                        { nanite | quantity = I.add nanite.quantity I.one }
+                in
+                    ( { model
+                        | nanite = newNanite
+                        , rawMaterials = I.sub model.rawMaterials model.nanite.cost
+                      }
+                    , Cmd.none
+                    )
             else
                 ( model, Cmd.none )
 
@@ -111,6 +135,9 @@ update msg model =
                 )
             else
                 ( model, Cmd.none )
+
+        Mdl msg_ ->
+            Material.update Mdl msg_ model
 
 
 updateOnTick : Model -> Model
@@ -126,8 +153,8 @@ updateOnTick model =
             { model
                 | rawMaterials = totalStorage
                 , localResource =
-                  I.sub totalStorage model.rawMaterials
-                |> I.sub model.localResource
+                    I.sub totalStorage model.rawMaterials
+                        |> I.sub model.localResource
             }
         else
             { model
@@ -155,6 +182,10 @@ currentStorage model =
 
 
 -- VIEW
+
+
+type alias Mdl =
+    Material.Model
 
 
 naniteInfo : Integer -> String
@@ -198,9 +229,33 @@ view model =
         [ viewNanite model.nanite.quantity
         , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource model.localResource
-        , div [] [ button [ onClick ConvertNanite ] [ text ("Convert nanite (100 raw materials)") ] ]
-        , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
+        , Toggles.switch Mdl
+            [ 0 ]
+            model.mdl
+            [ Options.onToggle ToggleAutoReplication
+            , Toggles.value model.nanite.autoreplication
+            ]
+            [ text "Autoreplication" ]
+        , Button.render Mdl
+            [ 1 ]
+            model.mdl
+            [ Button.raised
+            , if model.nanite.autoreplication then
+                Options.nop
+              else
+                Button.disabled
+            , Options.onClick ConvertNanite
+            ]
+            [ text ("Convert nanite (100 raw materials)") ]
+        , Button.render Mdl
+            [ 2 ]
+            model.mdl
+            [ Button.raised
+            , Options.onClick ExpandStorage
+            ]
+            [ text ("Expand Storage (500 raw materials)") ]
         ]
+        |> Material.Scheme.topWithScheme Color.Grey Color.Blue
 
 
 main : Program Never Model Msg
