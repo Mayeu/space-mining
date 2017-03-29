@@ -3,12 +3,7 @@ module GrayGoo exposing (..)
 import Data.Integer as I exposing (Integer)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Material
-import Material.Button as Button
-import Material.Color as Color
-import Material.Options as Options
-import Material.Scheme
-import Material.Toggles as Toggles
+import Html.Events exposing (onClick)
 import Time exposing (Time, second)
 
 
@@ -19,7 +14,6 @@ type alias NaniteModel =
     { quantity : Integer
     , storage : Integer
     , cost : Integer
-    , autoreplication : Bool
     }
 
 
@@ -29,18 +23,17 @@ type alias Model =
     , storageLevel : Integer
     , expandStorageCost : Integer
     , localResource : Integer
-    , mdl : Material.Model
     }
 
 
 initialModel : Model
 initialModel =
-    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource Material.model
+    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource
 
 
 initialNanite : NaniteModel
 initialNanite =
-    NaniteModel I.one (I.fromInt 100) initialNaniteCost True
+    NaniteModel I.one (I.fromInt 100) initialNaniteCost
 
 
 initialBuildTime : Integer
@@ -87,8 +80,6 @@ type Msg
     = Tick Time
     | ConvertNanite
     | ExpandStorage
-    | ToggleAutoReplication
-    | Mdl (Material.Msg Msg)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -96,16 +87,6 @@ update msg model =
     case msg of
         Tick _ ->
             ( updateOnTick model, Cmd.none )
-
-        ToggleAutoReplication ->
-            let
-                nanite =
-                    model.nanite
-
-                newNanite =
-                    { nanite | autoreplication = not nanite.autoreplication }
-            in
-                ( { model | nanite = newNanite }, Cmd.none )
 
         ConvertNanite ->
             if I.gte model.rawMaterials model.nanite.cost then
@@ -135,9 +116,6 @@ update msg model =
                 )
             else
                 ( model, Cmd.none )
-
-        Mdl msg_ ->
-            Material.update Mdl msg_ model
 
 
 updateOnTick : Model -> Model
@@ -184,10 +162,6 @@ currentStorage model =
 -- VIEW
 
 
-type alias Mdl =
-    Material.Model
-
-
 naniteInfo : Integer -> String
 naniteInfo quantity =
     "Nanite: " ++ (I.toString quantity)
@@ -229,34 +203,9 @@ view model =
         [ viewNanite model.nanite.quantity
         , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource model.localResource
-        , Toggles.switch Mdl
-            [ 0 ]
-            model.mdl
-            [ Options.onToggle ToggleAutoReplication
-            , Toggles.value model.nanite.autoreplication
-            ]
-            [ text "Autoreplication" ]
-        , Button.render Mdl
-            [ 1 ]
-            model.mdl
-            [ Button.raised
-            , if model.nanite.autoreplication then
-                -- Autoreplication is on, you don't need to buy anything
-                Button.disabled
-              else
-                Options.nop
-            , Options.onClick ConvertNanite
-            ]
-            [ text ("Convert nanite (100 raw materials)") ]
-        , Button.render Mdl
-            [ 2 ]
-            model.mdl
-            [ Button.raised
-            , Options.onClick ExpandStorage
-            ]
-            [ text ("Expand Storage (500 raw materials)") ]
+        , div [] [ button [ onClick ConvertNanite ] [ text ("Convert nanite (100 raw materials)") ] ]
+        , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
         ]
-        |> Material.Scheme.topWithScheme Color.Grey Color.Blue
 
 
 main : Program Never Model Msg
