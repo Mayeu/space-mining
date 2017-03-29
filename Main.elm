@@ -14,6 +14,7 @@ type alias NaniteModel =
     { quantity : Integer
     , storage : Integer
     , cost : Integer
+    , autoreplication : Bool
     }
 
 
@@ -33,7 +34,7 @@ initialModel =
 
 initialNanite : NaniteModel
 initialNanite =
-    NaniteModel I.one (I.fromInt 100) initialNaniteCost
+    NaniteModel I.one (I.fromInt 100) initialNaniteCost True
 
 
 initialBuildTime : Integer
@@ -80,6 +81,7 @@ type Msg
     = Tick Time
     | ConvertNanite
     | ExpandStorage
+    | ToggleAutoreplication
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -116,6 +118,16 @@ update msg model =
                 )
             else
                 ( model, Cmd.none )
+
+        ToggleAutoreplication ->
+            let
+                nanite =
+                    model.nanite
+
+                newNanite =
+                    { nanite | autoreplication = not nanite.autoreplication }
+            in
+                ( { model | nanite = newNanite }, Cmd.none )
 
 
 updateOnTick : Model -> Model
@@ -203,8 +215,32 @@ view model =
         [ viewNanite model.nanite.quantity
         , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource model.localResource
-        , div [] [ button [ onClick ConvertNanite ] [ text ("Convert nanite (100 raw materials)") ] ]
-        , div [] [ button [ onClick ExpandStorage ] [ text ("Expand Storage (500 raw materials)") ] ]
+        , div []
+            [ checkbox ToggleAutoreplication
+                "Autoreplication"
+                model.nanite.autoreplication
+            , button
+                [ onClick ConvertNanite
+                , if model.nanite.autoreplication then
+                    disabled True
+                  else
+                    disabled False
+                ]
+                [ text ("Convert nanite (100 raw materials)") ]
+            , button
+                [ onClick ExpandStorage ]
+                [ text ("Expand Storage (500 raw materials)") ]
+            ]
+        ]
+
+
+checkbox : msg -> String -> Bool -> Html msg
+checkbox msg name state =
+    label
+        [ style [ ( "padding", "20px" ) ]
+        ]
+        [ input [ type_ "checkbox", checked state, onClick msg ] []
+        , text name
         ]
 
 
