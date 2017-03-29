@@ -174,29 +174,14 @@ currentStorage model =
 -- VIEW
 
 
-naniteInfo : Integer -> String
-naniteInfo quantity =
-    "Nanite: " ++ (I.toString quantity)
-
-
-materialInfo : Integer -> Integer -> String
-materialInfo quantity storage =
-    "Raw Materials: " ++ (I.toString quantity) ++ " / " ++ (I.toString storage)
-
-
-storageInfo : Integer -> String
-storageInfo quantity =
-    "Total Storage: " ++ (I.toString quantity)
-
-
 resourceInfo : Integer -> String
 resourceInfo quantity =
     "Local Resource: " ++ (I.toString quantity)
 
 
-viewNanite : Integer -> Html Msg
-viewNanite quantity =
-    p [] [ text (naniteInfo quantity) ]
+viewResource : String -> Integer -> Html Msg
+viewResource label quantity =
+    p [] [ (label ++ ": " ++ (I.toString quantity)) |> text ]
 
 
 viewMaterials : Integer -> Integer -> Html Msg
@@ -204,17 +189,17 @@ viewMaterials quantity storage =
     p [] [ text (materialInfo quantity storage) ]
 
 
-viewResource : Integer -> Html Msg
-viewResource quantity =
-    p [] [ text (resourceInfo quantity) ]
+materialInfo : Integer -> Integer -> String
+materialInfo quantity storage =
+    "Raw Materials: " ++ (I.toString quantity) ++ " / " ++ (I.toString storage)
 
 
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
-        [ viewNanite model.nanite.quantity
+        [ viewResource "Nanite" model.nanite.quantity
         , currentStorage model |> viewMaterials model.rawMaterials
-        , viewResource model.localResource
+        , viewResource "Local Resource" model.localResource
         , div []
             [ checkbox ToggleAutoreplication
                 "Autoreplication"
