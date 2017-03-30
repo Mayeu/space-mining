@@ -151,7 +151,30 @@ updateOnTick model =
     -}
     model
         |> updateMining
+        |> updateTrigger
         |> updateReplicate
+
+
+
+{-
+   Update what can be trigger on the interface
+-}
+
+
+updateTrigger : Model -> Model
+updateTrigger model =
+    -- Right now, there is only one button
+    if I.gte model.rawMaterials model.interface.trigger.quantity then
+        let
+            interface =
+                model.interface
+
+            newInterface =
+                { interface | triggered = True }
+        in
+            { model | interface = newInterface }
+    else
+        model
 
 
 updateMining : Model -> Model
@@ -269,17 +292,34 @@ view model =
             model.nanite.autoreplication
         , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource "Local Resource" model.localResource
-        , div []
-            [ button
-                [ onClick ConvertNanite
-                , if model.nanite.autoreplication then
-                    disabled True
-                  else
-                    disabled False
-                ]
-                [ text ("Convert nanite (100 raw materials)") ]
-            ]
+        , generateInterface model
         ]
+
+
+generateInterface : Model -> Html Msg
+generateInterface model =
+    let
+        interface =
+            model.interface
+    in
+        case interface.type_ of
+            Button ->
+                if interface.triggered then
+                    div []
+                        [ button
+                            [ onClick interface.msg
+                            , if model.nanite.autoreplication then
+                                disabled True
+                              else
+                                disabled False
+                            ]
+                            [ text (interface.text ++ " (" ++ (toString 100) ++ " raw materials)") ]
+                        ]
+                else
+                    div [] []
+
+            Checkbox ->
+                div [] [ (checkbox interface.msg interface.text True) ]
 
 
 checkbox : msg -> String -> Bool -> Html msg
