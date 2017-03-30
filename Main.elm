@@ -18,18 +18,52 @@ type alias NaniteModel =
     }
 
 
+type Resource
+    = RawMaterial
+    | Nanite
+
+
+type alias Trigger =
+    { resource : Resource
+    , quantity : Integer
+    }
+
+
+type InterfaceItem
+    = Button
+    | Checkbox
+
+
+type alias InterfaceModel =
+    { type_ : InterfaceItem
+    , text : String
+    , msg : Msg
+    , trigger : Trigger
+    , triggered : Bool
+    }
+
+
 type alias Model =
     { nanite : NaniteModel
     , rawMaterials : Integer
-    , storageLevel : Integer
-    , expandStorageCost : Integer
     , localResource : Integer
+    , interface : InterfaceModel
+    }
+
+
+interfaceModel : InterfaceModel
+interfaceModel =
+    { type_ = Button
+    , text = "Convert nanite"
+    , msg = ConvertNanite
+    , trigger = Trigger RawMaterial (I.fromInt 100)
+    , triggered = False
     }
 
 
 initialModel : Model
 initialModel =
-    Model initialNanite initialRawMaterials initialStorageLevel initialExpandStorageCost initialLocalResource
+    Model initialNanite initialRawMaterials initialLocalResource interfaceModel
 
 
 initialNanite : NaniteModel
@@ -52,16 +86,6 @@ initialNaniteCost =
     I.fromInt 100
 
 
-initialStorageLevel : Integer
-initialStorageLevel =
-    I.zero
-
-
-initialExpandStorageCost : Integer
-initialExpandStorageCost =
-    I.fromInt 500
-
-
 initialLocalResource : Integer
 initialLocalResource =
     -- Local resources, in nano grams
@@ -80,7 +104,6 @@ initialLocalResource =
 type Msg
     = Tick Time
     | ConvertNanite
-    | ExpandStorage
     | ToggleAutoreplication
 
 
@@ -108,17 +131,6 @@ update msg model =
             else
                 ( model, Cmd.none )
 
-        ExpandStorage ->
-            if I.gte model.rawMaterials model.expandStorageCost then
-                ( { model
-                    | rawMaterials = I.sub model.rawMaterials model.expandStorageCost
-                    , storageLevel = I.add model.storageLevel I.one
-                  }
-                , Cmd.none
-                )
-            else
-                ( model, Cmd.none )
-
         ToggleAutoreplication ->
             let
                 nanite =
@@ -132,25 +144,81 @@ update msg model =
 
 updateOnTick : Model -> Model
 updateOnTick model =
-    let
-        newRawMaterials =
-            I.add model.rawMaterials model.nanite.quantity
+    {-
+       On each tick there is multiple things to resolve.
+       Each of those should take the model as input, and output the model
+       (modified or not).
+    -}
+    model
+        |> updateMining
+        |> updateReplicate
 
-        totalStorage =
-            currentStorage model
+
+updateMining : Model -> Model
+updateMining model =
+    let
+        mined =
+            mine model
     in
-        if I.gt newRawMaterials totalStorage then
-            { model
-                | rawMaterials = totalStorage
-                , localResource =
-                    I.sub totalStorage model.rawMaterials
-                        |> I.sub model.localResource
-            }
+        if I.eq mined I.zero then
+            model
         else
             { model
-                | rawMaterials = newRawMaterials
-                , localResource = I.sub model.localResource model.nanite.quantity
+                | rawMaterials =
+                    I.add model.rawMaterials mined
+                , localResource =
+                    I.sub model.localResource mined
             }
+
+
+updateReplicate : Model -> Model
+updateReplicate model =
+    case model.nanite.autoreplication of
+        False ->
+            model
+
+        True ->
+            if I.eq model.rawMaterials <| currentStorage model then
+                let
+                    double value =
+                        I.mul value (I.fromInt 2)
+
+                    nanite =
+                        model.nanite
+
+                    newNanite =
+                        { nanite | quantity = double nanite.quantity }
+                in
+                    { model
+                        | rawMaterials = I.zero
+                        , nanite = newNanite
+                        , localResource = I.sub model.localResource model.rawMaterials
+                    }
+            else
+                model
+
+
+
+{- Given a model, return the mined quantity -}
+
+
+mine : Model -> Integer
+mine model =
+    let
+        totalStorage =
+            currentStorage model
+
+        leftStorage =
+            I.sub totalStorage model.rawMaterials
+    in
+        if I.eq model.rawMaterials totalStorage then
+            I.zero
+        else
+            I.min model.nanite.quantity <| I.min model.localResource leftStorage
+
+
+
+-- SUBSCRIPTION
 
 
 subscriptions : Model -> Sub Msg
@@ -165,9 +233,7 @@ subscriptions model =
 
 currentStorage : Model -> Integer
 currentStorage model =
-    I.fromInt 200
-        |> I.mul model.storageLevel
-        |> I.add (I.fromInt 1000)
+    I.mul model.nanite.storage model.nanite.quantity
 
 
 
@@ -198,13 +264,13 @@ view : Model -> Html Msg
 view model =
     div [ class "content" ]
         [ viewResource "Nanite" model.nanite.quantity
+        , checkbox ToggleAutoreplication
+            "Autoreplication"
+            model.nanite.autoreplication
         , currentStorage model |> viewMaterials model.rawMaterials
         , viewResource "Local Resource" model.localResource
         , div []
-            [ checkbox ToggleAutoreplication
-                "Autoreplication"
-                model.nanite.autoreplication
-            , button
+            [ button
                 [ onClick ConvertNanite
                 , if model.nanite.autoreplication then
                     disabled True
@@ -212,9 +278,6 @@ view model =
                     disabled False
                 ]
                 [ text ("Convert nanite (100 raw materials)") ]
-            , button
-                [ onClick ExpandStorage ]
-                [ text ("Expand Storage (500 raw materials)") ]
             ]
         ]
 
@@ -222,7 +285,7 @@ view model =
 checkbox : msg -> String -> Bool -> Html msg
 checkbox msg name state =
     label
-        [ style [ ( "padding", "20px" ) ]
+        [ style [ ( "padding", "10px" ) ]
         ]
         [ input [ type_ "checkbox", checked state, onClick msg ] []
         , text name
