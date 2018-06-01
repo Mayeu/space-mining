@@ -1,4 +1,4 @@
-module GrayGoo exposing (..)
+module SpaceMining exposing (..)
 
 import Data.Integer as I exposing (Integer)
 import Html exposing (..)
@@ -10,17 +10,15 @@ import Time exposing (Time, second)
 -- MODEL
 
 
-type alias NaniteModel =
-    { quantity : Integer
-    , storage : Integer
-    , cost : Integer
-    , autoreplication : Bool
-    }
+type PlayerStatus
+    = Idling
+    | Mining
+    | Dead
 
 
 type Resource
     = RawMaterial
-    | Nanite
+    | Oxygen
 
 
 type alias Trigger =
@@ -44,31 +42,40 @@ type alias InterfaceModel =
 
 
 type alias Model =
-    { nanite : NaniteModel
-    , rawMaterials : Integer
-    , localResource : Integer
-    , interface : InterfaceModel
+    { rawMaterials : Integer
+    , oxygen : Integer
+    , spaceCoins : Integer
+    , interface : List InterfaceModel
+    , playerStatus : PlayerStatus
     }
 
 
-interfaceModel : InterfaceModel
+interfaceModel : List InterfaceModel
 interfaceModel =
-    { type_ = Button
-    , text = "Convert nanite"
-    , msg = ConvertNanite
-    , trigger = Trigger RawMaterial (I.fromInt 100)
-    , triggered = False
-    }
+    [ { type_ = Button
+      , text = "Mine"
+      , msg = Mine
+      , trigger = Trigger RawMaterial I.zero
+      , triggered = True
+      }
+    , { type_ = Button
+      , text = "Buy 25 O2 (25 SpaceCoins)"
+      , msg = BuyOxygen
+      , trigger = Trigger Oxygen I.zero
+      , triggered = True
+      }
+    , { type_ = Button
+      , text = "Sell 10 raw materials for 25 SC"
+      , msg = Sell10RawMaterials
+      , trigger = Trigger RawMaterial (I.fromInt 10)
+      , triggered = False
+      }
+    ]
 
 
 initialModel : Model
 initialModel =
-    Model initialNanite initialRawMaterials initialLocalResource interfaceModel
-
-
-initialNanite : NaniteModel
-initialNanite =
-    NaniteModel I.one (I.fromInt 100) initialNaniteCost True
+    Model initialRawMaterials initialOxygen initialSpaceCoin interfaceModel Idling
 
 
 initialBuildTime : Integer
@@ -81,20 +88,19 @@ initialRawMaterials =
     I.zero
 
 
-initialNaniteCost : Integer
-initialNaniteCost =
+initialOxygen : Integer
+initialOxygen =
     I.fromInt 100
 
 
-initialLocalResource : Integer
-initialLocalResource =
-    -- Local resources, in nano grams
-    case I.fromString "32000000000000000000" of
-        Just localResource ->
-            localResource
+initialSpaceCoin : Integer
+initialSpaceCoin =
+    I.fromInt 100
 
-        Nothing ->
-            I.zero
+
+oxygenCost : Integer
+oxygenCost =
+    I.one
 
 
 
@@ -103,8 +109,9 @@ initialLocalResource =
 
 type Msg
     = Tick Time
-    | ConvertNanite
-    | ToggleAutoreplication
+    | BuyOxygen
+    | Mine
+    | Sell10RawMaterials
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -113,33 +120,48 @@ update msg model =
         Tick _ ->
             ( updateOnTick model, Cmd.none )
 
-        ConvertNanite ->
-            if I.gte model.rawMaterials model.nanite.cost then
-                let
-                    nanite =
-                        model.nanite
+        BuyOxygen ->
+            ( buyOxygen model (I.fromInt 25), Cmd.none )
 
-                    newNanite =
-                        { nanite | quantity = I.add nanite.quantity I.one }
-                in
-                    ( { model
-                        | nanite = newNanite
-                        , rawMaterials = I.sub model.rawMaterials model.nanite.cost
-                      }
-                    , Cmd.none
-                    )
-            else
-                ( model, Cmd.none )
+        Mine ->
+            ( { model
+                | rawMaterials = I.add model.rawMaterials I.one
+              }
+                |> updateOxygen
+                |> updateTrigger
+            , Cmd.none
+            )
 
-        ToggleAutoreplication ->
-            let
-                nanite =
-                    model.nanite
+        Sell10RawMaterials ->
+            ( sellRawMaterials model (I.fromInt 10) (I.fromInt 25)
+            , Cmd.none
+            )
 
-                newNanite =
-                    { nanite | autoreplication = not nanite.autoreplication }
-            in
-                ( { model | nanite = newNanite }, Cmd.none )
+
+sellRawMaterials : Model -> Integer -> Integer -> Model
+sellRawMaterials model quantity price =
+    if I.lte quantity model.rawMaterials then
+        { model
+            | rawMaterials = I.sub model.rawMaterials quantity
+            , spaceCoins = I.add model.spaceCoins price
+        }
+    else
+        model
+
+
+buyOxygen : Model -> Integer -> Model
+buyOxygen model quantity =
+    let
+        buyingCost =
+            I.mul quantity oxygenCost
+    in
+        if I.gte model.spaceCoins buyingCost then
+            { model
+                | oxygen = I.add model.oxygen quantity
+                , spaceCoins = I.sub model.spaceCoins buyingCost
+            }
+        else
+            model
 
 
 updateOnTick : Model -> Model
@@ -150,9 +172,29 @@ updateOnTick model =
        (modified or not).
     -}
     model
-        |> updateMining
+        |> updateOxygen
         |> updateTrigger
-        |> updateReplicate
+
+
+
+{-
+   The oxygen automatically go down over time
+-}
+
+
+updateOxygen : Model -> Model
+updateOxygen model =
+    let
+        newOxygen =
+            I.sub model.oxygen I.one
+    in
+        if I.gt newOxygen I.zero then
+            { model | oxygen = newOxygen }
+        else
+            { model
+                | oxygen = I.zero
+                , playerStatus = Dead
+            }
 
 
 
@@ -163,81 +205,31 @@ updateOnTick model =
 
 updateTrigger : Model -> Model
 updateTrigger model =
+    let
+        interfaces =
+            model.interface
+
+        newInterfaces =
+            List.map (setTrigger model) interfaces
+    in
+        { model | interface = newInterfaces }
+
+
+setTrigger : Model -> InterfaceModel -> InterfaceModel
+setTrigger model interface =
     -- Right now, there is only one button
-    if I.gte model.rawMaterials model.interface.trigger.quantity then
-        let
-            interface =
-                model.interface
-
-            newInterface =
+    case interface.trigger.resource of
+        RawMaterial ->
+            if I.gte model.rawMaterials interface.trigger.quantity then
                 { interface | triggered = True }
-        in
-            { model | interface = newInterface }
-    else
-        model
-
-
-updateMining : Model -> Model
-updateMining model =
-    let
-        mined =
-            mine model
-    in
-        if I.eq mined I.zero then
-            model
-        else
-            { model
-                | rawMaterials =
-                    I.add model.rawMaterials mined
-                , localResource =
-                    I.sub model.localResource mined
-            }
-
-
-updateReplicate : Model -> Model
-updateReplicate model =
-    case model.nanite.autoreplication of
-        False ->
-            model
-
-        True ->
-            if I.eq model.rawMaterials <| currentStorage model then
-                let
-                    double value =
-                        I.mul value (I.fromInt 2)
-
-                    nanite =
-                        model.nanite
-
-                    newNanite =
-                        { nanite | quantity = double nanite.quantity }
-                in
-                    { model
-                        | rawMaterials = I.zero
-                        , nanite = newNanite
-                        , localResource = I.sub model.localResource model.rawMaterials
-                    }
             else
-                model
+                interface
 
-
-
-{- Given a model, return the mined quantity -}
-
-
-mine : Model -> Integer
-mine model =
-    let
-        totalStorage =
-            currentStorage model
-
-        leftStorage =
-            I.sub totalStorage model.rawMaterials
-    in
-        if I.eq model.rawMaterials totalStorage then
-            I.zero
-        else
-            I.min model.nanite.quantity <| I.min model.localResource leftStorage
+        Oxygen ->
+            if I.gte model.oxygen interface.trigger.quantity then
+                { interface | triggered = True }
+            else
+                interface
 
 
 
@@ -256,16 +248,11 @@ subscriptions model =
 
 currentStorage : Model -> Integer
 currentStorage model =
-    I.mul model.nanite.storage model.nanite.quantity
+    I.fromInt 100
 
 
 
 -- VIEW
-
-
-resourceInfo : Integer -> String
-resourceInfo quantity =
-    "Local Resource: " ++ (I.toString quantity)
 
 
 viewResource : String -> Integer -> Html Msg
@@ -286,40 +273,42 @@ materialInfo quantity storage =
 view : Model -> Html Msg
 view model =
     div [ class "content" ]
-        [ viewResource "Nanite" model.nanite.quantity
-        , checkbox ToggleAutoreplication
-            "Autoreplication"
-            model.nanite.autoreplication
+        [ viewResource "O2 Level" model.oxygen
+        , viewResource "SpaceCoin" model.spaceCoins
         , currentStorage model |> viewMaterials model.rawMaterials
-        , viewResource "Local Resource" model.localResource
-        , generateInterface model
+        , mapInterface model
+        , if model.playerStatus == Dead then
+            p [] [ text "Sorry, you are dead" ]
+          else
+            p [] []
         ]
 
 
-generateInterface : Model -> Html Msg
-generateInterface model =
-    let
-        interface =
-            model.interface
-    in
-        case interface.type_ of
-            Button ->
-                if interface.triggered then
-                    div []
-                        [ button
-                            [ onClick interface.msg
-                            , if model.nanite.autoreplication then
-                                disabled True
-                              else
-                                disabled False
-                            ]
-                            [ text (interface.text ++ " (" ++ (toString 100) ++ " raw materials)") ]
-                        ]
-                else
-                    div [] []
+mapInterface : Model -> Html Msg
+mapInterface model =
+    div [] <| List.map (generateInterface model) model.interface
 
-            Checkbox ->
-                div [] [ (checkbox interface.msg interface.text True) ]
+
+generateInterface : Model -> InterfaceModel -> Html Msg
+generateInterface model interface =
+    case interface.type_ of
+        Button ->
+            if interface.triggered then
+                div []
+                    [ button
+                        [ onClick interface.msg
+                        , if model.playerStatus == Dead then
+                            disabled True
+                          else
+                            disabled False
+                        ]
+                        [ text (interface.text) ]
+                    ]
+            else
+                div [] []
+
+        Checkbox ->
+            div [] [ (checkbox interface.msg interface.text False) ]
 
 
 checkbox : msg -> String -> Bool -> Html msg
